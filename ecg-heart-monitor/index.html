@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CardioPulse - เครื่องจำลองและวินิจฉัยคลื่นไฟฟ้าหัวใจเรียลไทม์</title>
+  <!-- Google Fonts for premium typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Sarabun:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Background ambient glow -->
+  <div class="glow-bg"></div>
+
+  <div class="app-container">
+    <!-- Header: ระบบควบคุมและโลโก้ -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="heart-pulse-icon">
+          <svg viewBox="0 0 32 32" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M4 16h4l3-9 4 18 3-12 2 3h8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div>
+          <h1>CardioPulse 3D</h1>
+          <p>ระบบตรวจหาและชี้เป้าความผิดปกติของหัวใจด้วย ECG 12 Leads</p>
+        </div>
+      </div>
+
+      <!-- ส่วนควบคุมจังหวะและเสียง -->
+      <div class="header-controls">
+        <div class="control-group">
+          <label for="bpm-slider">ชีพจร: <span id="bpm-val">75</span> BPM</label>
+          <input type="range" id="bpm-slider" min="40" max="180" value="75">
+        </div>
+
+        <div class="status-pill active-pathology" id="active-pathology-tag">
+          <span class="pulse-dot green"></span>
+          <span id="pathology-title">จังหวะหัวใจปกติ (Normal Sinus)</span>
+        </div>
+
+        <button class="btn btn-audio" id="audio-toggle" title="เปิด/ปิดเสียงบี๊บ">
+          <svg id="audio-icon" class="icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <!-- Muted state default -->
+            <line x1="1" y1="1" x2="23" y2="23" stroke="#FF3366"></line>
+            <path d="M9 18V5l12-2v13"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="16" r="3"></circle>
+          </svg>
+          <span id="audio-text">ปิดเสียง</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Grid: หน้าจอหลักแบ่งเป็น 3 คอลัมน์ -->
+    <main class="dashboard-grid">
+      
+      <!-- คอลัมน์ซ้าย: แผนภาพหัวใจ และ จุดติดตั้งขั้วไฟฟ้า -->
+      <section class="panel panel-left card">
+        <div class="tab-header">
+          <button class="tab-btn active" data-tab="tab-heart">แผนภาพหัวใจ</button>
+          <button class="tab-btn" data-tab="tab-electrodes">จุดติดตั้งขั้วไฟฟ้า (ECG Leads)</button>
+        </div>
+
+        <div class="tab-content active" id="tab-heart">
+          <div class="heart-visualizer-container">
+            <div id="heart-svg-placeholder"></div>
+            <!-- Glow background overlay behind the heart -->
+            <div class="heart-back-glow" id="heart-glow-element"></div>
+          </div>
+          <div class="panel-footer-info">
+            <p><small>*คลิกแต่ละส่วนของหัวใจ เพื่อดูขั้วไฟฟ้าที่ใช้ตรวจจับสภาวะของส่วนนั้น</small></p>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-electrodes">
+          <div class="electrodes-map-container">
+            <!-- Chest Silhouette & Electrodes SVG -->
+            <svg id="chest-electrodes-svg" viewBox="0 0 300 350" width="100%" height="100%">
+              <defs>
+                <linearGradient id="chest-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#1E293B" />
+                  <stop offset="100%" stop-color="#0F172A" />
+                </linearGradient>
+              </defs>
+              <!-- Chest Outline -->
+              <path d="M 70,80 C 80,45 220,45 230,80 C 245,115 270,120 270,140 C 270,180 250,260 210,310 C 190,335 110,335 90,310 C 50,260 30,180 30,140 C 30,120 55,115 70,80 Z" 
+                    fill="url(#chest-grad)" stroke="#334155" stroke-width="2" />
+              <!-- Neck and Shoulders outline -->
+              <path d="M 120,46 C 120,20 180,20 180,46" fill="none" stroke="#334155" stroke-width="2" />
+              <!-- Sternum bone guideline (dotted) -->
+              <line x1="150" y1="60" x2="150" y2="180" stroke="#475569" stroke-dasharray="3,3" stroke-width="1.5" />
+              
+              <!-- Limb Electrodes (RA, LA, RL, LL) placed stylistically -->
+              <!-- RA (Right Arm / Shoulder) -->
+              <circle id="el-RA" class="electrode limb" cx="55" cy="110" r="10" />
+              <text x="55" y="113" class="electrode-lbl" text-anchor="middle">RA</text>
+
+              <!-- LA (Left Arm / Shoulder) -->
+              <circle id="el-LA" class="electrode limb" cx="245" cy="110" r="10" />
+              <text x="245" y="113" class="electrode-lbl" text-anchor="middle">LA</text>
+
+              <!-- RL (Right Leg / Lower Rib) -->
+              <circle id="el-RL" class="electrode limb" cx="75" cy="280" r="10" />
+              <text x="75" y="283" class="electrode-lbl" text-anchor="middle">RL</text>
+
+              <!-- LL (Left Leg / Lower Rib) -->
+              <circle id="el-LL" class="electrode limb" cx="225" cy="280" r="10" />
+              <text x="225" y="283" class="electrode-lbl" text-anchor="middle">LL</text>
+
+              <!-- Chest Electrodes V1 - V6 -->
+              <!-- V1 (4th ICS, R sternal border) -->
+              <circle id="el-V1" class="electrode precordial" cx="132" cy="135" r="9" />
+              <text x="132" y="138" class="electrode-lbl-small" text-anchor="middle">V1</text>
+
+              <!-- V2 (4th ICS, L sternal border) -->
+              <circle id="el-V2" class="electrode precordial" cx="168" cy="135" r="9" />
+              <text x="168" y="138" class="electrode-lbl-small" text-anchor="middle">V2</text>
+
+              <!-- V3 (midway V2-V4) -->
+              <circle id="el-V3" class="electrode precordial" cx="180" cy="160" r="9" />
+              <text x="180" y="163" class="electrode-lbl-small" text-anchor="middle">V3</text>
+
+              <!-- V4 (5th ICS, midclavicular line) -->
+              <circle id="el-V4" class="electrode precordial" cx="195" cy="188" r="9" />
+              <text x="195" y="191" class="electrode-lbl-small" text-anchor="middle">V4</text>
+
+              <!-- V5 (anterior axillary line) -->
+              <circle id="el-V5" class="electrode precordial" cx="220" cy="195" r="9" />
+              <text x="220" y="198" class="electrode-lbl-small" text-anchor="middle">V5</text>
+
+              <!-- V6 (midaxillary line) -->
+              <circle id="el-V6" class="electrode precordial" cx="245" cy="200" r="9" />
+              <text x="245" y="203" class="electrode-lbl-small" text-anchor="middle">V6</text>
+            </svg>
+          </div>
+          <div class="electrode-legend">
+            <span class="legend-item"><span class="dot limb-dot"></span> แขนขา (Limb)</span>
+            <span class="legend-item"><span class="dot chest-dot"></span> หน้าอก (Precordial)</span>
+          </div>
+          <div class="panel-footer-info">
+            <p><small>*นำเมาส์ชี้ที่จุดไฟฟ้า เพื่อดูชื่อ Lead และตำแหน่งหัวใจที่วัดผล</small></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- คอลัมน์กลาง: หน้าจอมอนิเตอร์ใหญ่ แสดงกราฟ ECG -->
+      <section class="panel panel-center card">
+        <div class="monitor-header">
+          <div class="monitor-title">
+            <span class="live-indicator">LIVE</span>
+            <h2>หน้าจอแสดงคลื่น ECG (ECG Monitor Grid)</h2>
+          </div>
+          
+          <div class="monitor-controls">
+            <!-- ตัวกรองการแสดง Lead -->
+            <div class="view-mode-selector">
+              <button class="btn btn-sm view-mode-btn active" data-mode="grid">12 Leads ทั้งหมด</button>
+              <button class="btn btn-sm view-mode-btn" data-mode="single">ขยาย Lead เดี่ยว</button>
+            </div>
+            
+            <div class="single-lead-dropdown-container hidden" id="lead-select-wrap">
+              <select id="single-lead-select" class="dropdown-select">
+                <option value="II">Lead II (ผนังล่าง)</option>
+                <option value="I">Lead I (ผนังข้าง)</option>
+                <option value="III">Lead III (ผนังล่าง)</option>
+                <option value="aVR">Lead aVR (ทางขวา)</option>
+                <option value="aVL">Lead aVL (ผนังข้าง)</option>
+                <option value="aVF">Lead aVF (ผนังล่าง)</option>
+                <option value="V1">Lead V1 (ห้องกั้น)</option>
+                <option value="V2">Lead V2 (ห้องกั้น)</option>
+                <option value="V3">Lead V3 (ผนังหน้า)</option>
+                <option value="V4">Lead V4 (ผนังหน้า)</option>
+                <option value="V5">Lead V5 (ผนังข้าง)</option>
+                <option value="V6">Lead V6 (ผนังข้าง)</option>
+              </select>
+            </div>
+
+            <!-- ความเร็วและ Gain -->
+            <div class="config-sliders">
+              <div class="inline-control">
+                <label for="gain-slider">Gain:</label>
+                <input type="range" id="gain-slider" min="0.5" max="2" step="0.1" value="1.0">
+              </div>
+              <div class="inline-control">
+                <label for="speed-slider">ความเร็ว:</label>
+                <input type="range" id="speed-slider" min="15" max="50" value="25">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- หน้าจอมอนิเตอร์หลัก -->
+        <div class="monitor-screen-wrapper">
+          <canvas id="ecg-canvas"></canvas>
+          <!-- Neon scanning line sweep overlay -->
+          <div class="sweep-scanner" id="sweep-scanner-line"></div>
+        </div>
+
+        <div class="monitor-footer">
+          <span>ความเร็วหน้าจอกราฟ: <span id="speed-val">25</span> mm/s</span>
+          <span>ขนาดแอมพลิจูด (Gain): <span id="gain-val">10</span> mm/mV</span>
+          <span>ตัวกรองสัญญาณ: 0.05-150 Hz</span>
+        </div>
+      </section>
+
+      <!-- คอลัมน์ขวา: การวินิจฉัย เคสจำลอง และบทเรียน -->
+      <section class="panel panel-right card">
+        <div class="panel-section-title">
+          <h2>เครื่องมือเลือกเคสโรคหัวใจ (Pathology Selector)</h2>
+        </div>
+        
+        <!-- รายการเคสจำลองให้คลิกเลือก -->
+        <div class="pathology-selector-grid">
+          <button class="pathology-btn active" data-pathology="normal">
+            <span class="badge green">ปกติ</span>
+            <h3>จังหวะหัวใจปกติ</h3>
+            <p>Normal Sinus Rhythm</p>
+          </button>
+          
+          <button class="pathology-btn" data-pathology="anterior">
+            <span class="badge red">วิกฤต</span>
+            <h3>ผนังด้านหน้าขาดเลือด</h3>
+            <p>Anterior STEMI (LAD)</p>
+          </button>
+
+          <button class="pathology-btn" data-pathology="inferior">
+            <span class="badge red">วิกฤต</span>
+            <h3>ผนังด้านล่างขาดเลือด</h3>
+            <p>Inferior STEMI (RCA)</p>
+          </button>
+
+          <button class="pathology-btn" data-pathology="lateral">
+            <span class="badge red">วิกฤต</span>
+            <h3>ผนังด้านข้างขาดเลือด</h3>
+            <p>Lateral STEMI (LCx)</p>
+          </button>
+
+          <button class="pathology-btn" data-pathology="septal">
+            <span class="badge yellow">ผิดปกติ</span>
+            <h3>ผนังกั้นห้องหัวใจขาดเลือด</h3>
+            <p>Septal Ischemia (LAD)</p>
+          </button>
+
+          <button class="pathology-btn" data-pathology="vf">
+            <span class="badge red-blink">ฉุกเฉิน</span>
+            <h3>ห้องล่างเต้นพลิ้วระรัว</h3>
+            <p>Ventricular Fibrillation</p>
+          </button>
+        </div>
+
+        <!-- แผงแสดงผลลัพธ์การวินิจฉัยโดยละเอียด -->
+        <div class="diagnostic-panel">
+          <div class="diagnostic-header">
+            <h3>รายงานการวิเคราะห์คลื่นและชี้เป้าโรค</h3>
+          </div>
+          
+          <div class="diagnostic-body">
+            <!-- ส่วนที่พัง/ผิดปกติของหัวใจ -->
+            <div class="diag-item">
+              <span class="diag-label">จุดที่เกิดความผิดปกติบนหัวใจ:</span>
+              <span class="diag-value highlight-value" id="diag-location">ไม่มี (ปกติ)</span>
+            </div>
+            
+            <!-- เส้นเลือดอุดตันที่เป็นสาเหตุ -->
+            <div class="diag-item">
+              <span class="diag-label">หลอดเลือดหัวใจที่อุดตัน (Culprit):</span>
+              <span class="diag-value highlight-value" id="diag-artery">ไม่มี (ปกติ)</span>
+            </div>
+
+            <!-- กลุ่ม Leads ที่ผิดปกติ -->
+            <div class="diag-item">
+              <span class="diag-label">กลุ่ม Leads ที่ตรวจพบความผิดปกติ:</span>
+              <div class="lead-chips-container" id="diag-leads">
+                <span class="lead-chip ok-chip">ทุก Lead ปกติ</span>
+              </div>
+            </div>
+
+            <hr class="diag-divider">
+
+            <!-- รายละเอียดทางการแพทย์ -->
+            <div class="diag-details">
+              <h4>คำอธิบายลักษณะทางคลื่นไฟฟ้า (Clinical Notes):</h4>
+              <p id="diag-desc-text">
+                คลื่นไฟฟ้าหัวใจมีจังหวะเต้นที่สม่ำเสมอ มี P-wave นำหน้า QRS complex ทุกตัว ความสัมพันธ์ของคลื่นต่าง ๆ เป็นปกติ สะท้อนถึงการนำไฟฟ้าหัวใจที่วิ่งจาก SA Node ผ่าน AV Node ลงไปสู่ห้องล่างโดยไม่มีการขัดขวางหรือเนื้อเยื่อขาดเลือด
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>© 2026 CardioPulse 3D - โครงการจำลองความผิดปกติของหัวใจเสมือนจริงเพื่อการศึกษาทางการแพทย์</p>
+    </footer>
+  </div>
+
+  <!-- โหลดสคริปต์การทำงานแบบ ES6 Modules -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>

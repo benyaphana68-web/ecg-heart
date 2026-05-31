@@ -1,0 +1,14 @@
+{
+  "name": "ecg-heart-monitor",
+  "version": "1.0.0",
+  "description": "เครื่องจำลองและวินิจฉัยคลื่นไฟฟ้าหัวใจเรียลไทม์ (Interactive ECG Heart Monitor & Localization)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3000 --open",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.2.0"
+  }
+}
